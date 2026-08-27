@@ -37,3 +37,11 @@ python main.py
 5. **导出课表**：课表视图支持导出为 PNG 图片。
 
 所有配置（课表节次时间、学期周数、列显示、学分上限等）都可在设置对话框中调整，或直接编辑 `~/.shiori/config.json`。
+
+## 致谢
+
+newjw 教务系统对接功能由 [HDU-KillCourse](https://github.com/cr4n5/HDU-KillCourse) 重写得到，感谢作者。
+
+## 关于开发
+
+欢迎提 issue，精美的 UI 和部分繁杂的逻辑的程序是 vibe 的（但 100% 人工 Review），其余（极小部分）为手写~
