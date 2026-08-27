@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 from PySide6.QtWidgets import (QMainWindow, QSplitter, QLabel, QProgressBar,
                                QWidget, QHBoxLayout)
@@ -6,6 +7,7 @@ from PySide6.QtCore import Qt, QTimer
 
 from config.app_config import AppConfig
 from config.theme import CHROME
+from data.selection_store import has_content, seed_from_jiaowu
 from ui.schedule_view import ScheduleView
 from ui.course_view import CourseView
 from ui.infopanel_view import InfoPanelView
@@ -20,6 +22,15 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Shiori")
         # 唯一配置实例，统一供各视图调用；main.py 传入以复用其读到的配置
         self.config = config or AppConfig()
+
+        # 已选课初始化：教务文件就位时的同步复制已在 main.py 尝试；此处
+        # 记录“教务文件缺失且已选无内容”的待补种状态，待在线拉取成功
+        # 落盘后补做（见 _seed_after_sync）。
+        _files = self.config.files
+        self._seed_pending = (
+            not has_content(_files.get("selected_courses", "selected_course.json"))
+            and not Path(_files.get("jiaowu_courses", "jiaowu_schedule.json")).is_file()
+        )
 
         w = self.config.window
         self.resize(w.get("width", 1500), w.get("height", 800))
@@ -50,6 +61,8 @@ class MainWindow(QMainWindow):
         # 拉取成功后让对应视图重新读文件刷新
         self.sync.courses_updated.connect(lambda _n: self.course_view.reload_pool())
         self.sync.schedule_updated.connect(lambda _n: self.info_panel_view.reload_jiaowu())
+        # 启动时教务文件缺失的场景：拉取落盘后补做已选课初始化并重载
+        self.sync.schedule_updated.connect(self._seed_after_sync)
         # 手动触发：infopanel 两个更新按钮
         self.info_panel_view.sync_courses_requested.connect(self._sync_courses)
         self.info_panel_view.sync_schedule_requested.connect(self._sync_schedule)
@@ -121,6 +134,20 @@ class MainWindow(QMainWindow):
     def _auto_sync_schedule(self):
         """自动更新个人课表（启动 / 导出前）：忙碌时静默跳过。"""
         self.sync.fetch_schedule()
+
+    def _seed_after_sync(self, _count):
+        """启动时教务文件缺失的场景：在线拉取落盘后补做已选课初始化。
+
+        已选已有内容时 seed_from_jiaowu 内部直接跳过（绝不覆盖）；
+        补种成功后重载课程视图（loader 同时读课程池与已选）。
+        """
+        if not self._seed_pending:
+            return
+        files = self.config.files
+        if seed_from_jiaowu(files.get("selected_courses", "selected_course.json"),
+                            files.get("jiaowu_courses", "jiaowu_schedule.json")):
+            self._seed_pending = False
+            self.course_view.reload_pool()
 
     def _on_sync_started(self, label):
         """任务开始：进度条忙模式 + 提示等待，并禁用更新按钮。"""

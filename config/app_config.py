@@ -1,9 +1,352 @@
 import json
 import logging
-import shutil
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+
+# 内置示例配置：原仓库根目录的 config.example.json 固化为代码常量，
+# 打包（Nuitka）后不再依赖外部示例文件；config.json 缺失时以此为蓝本
+# 生成首次运行配置。与 DEFAULT_CONFIG 的分工：DEFAULT_CONFIG 是缺键
+# 回退用的全量默认值，EXAMPLE_CONFIG 是首装的完整初始配置（含
+# course_columns 等用户可编辑内容）。
+_EXAMPLE_CONFIG_JSON = """
+{
+    "course_columns": [
+        {
+            "field": "",
+            "name": "选择",
+            "visible": true,
+            "width": 30
+        },
+        {
+            "field": "xnmc",
+            "name": "学年",
+            "visible": false,
+            "width": 80
+        },
+        {
+            "field": "xqmc",
+            "name": "学期",
+            "visible": false,
+            "width": 30
+        },
+        {
+            "field": "kkbm",
+            "name": "开课学院",
+            "visible": false,
+            "width": 110
+        },
+        {
+            "field": "kch",
+            "name": "课程代码",
+            "visible": false,
+            "width": 110
+        },
+        {
+            "field": "kcmc",
+            "name": "课程名称",
+            "visible": true,
+            "width": 150
+        },
+        {
+            "field": "jsmc",
+            "name": "教师姓名",
+            "visible": true,
+            "width": 100
+        },
+        {
+            "field": "jxbmc",
+            "name": "教学班",
+            "visible": true,
+            "width": 200
+        },
+        {
+            "field": "xf",
+            "name": "学分",
+            "visible": true,
+            "width": 40
+        },
+        {
+            "field": "jzgxx",
+            "name": "任课教师",
+            "visible": false,
+            "width": 200
+        },
+        {
+            "field": "jgh",
+            "name": "教师工号",
+            "visible": false,
+            "width": 50
+        },
+        {
+            "field": "sksj",
+            "name": "上课时间",
+            "visible": true,
+            "width": 350
+        },
+        {
+            "field": "jxdd",
+            "name": "教学地点",
+            "visible": false,
+            "width": 200
+        },
+        {
+            "field": "jxbzc",
+            "name": "教学班组成",
+            "visible": true,
+            "width": 400
+        },
+        {
+            "field": "xsmc",
+            "name": "学时类型",
+            "visible": false,
+            "width": 90
+        },
+        {
+            "field": "rwzxs",
+            "name": "任务总学时",
+            "visible": false,
+            "width": 80
+        },
+        {
+            "field": "qsjsz",
+            "name": "起始结束周",
+            "visible": false,
+            "width": 100
+        },
+        {
+            "field": "kcgsmc",
+            "name": "课程归属",
+            "visible": false,
+            "width": 50
+        },
+        {
+            "field": "kclbmc",
+            "name": "课程类别",
+            "visible": false,
+            "width": 50
+        },
+        {
+            "field": "kcxzmc",
+            "name": "课程性质",
+            "visible": false,
+            "width": 50
+        },
+        {
+            "field": "kklxmc",
+            "name": "开课类型",
+            "visible": false,
+            "width": 50
+        },
+        {
+            "field": "kkztmc",
+            "name": "开课状态",
+            "visible": true,
+            "width": 80
+        },
+        {
+            "field": "jxbrl",
+            "name": "教学班容量",
+            "visible": true,
+            "width": 80
+        },
+        {
+            "field": "fcxxkrs",
+            "name": "已选人数",
+            "visible": true,
+            "width": 80
+        },
+        {
+            "field": "xiaoqmc",
+            "name": "校区",
+            "visible": true,
+            "width": 80
+        }
+    ],
+    "files": {
+        "course_pool": "course.json",
+        "selected_courses": "selected_course.json",
+        "jiaowu_courses": "jiaowu_schedule.json"
+    },
+    "log": {
+        "file": "logs/shiori.log",
+        "level": "DEBUG",
+        "console": true,
+        "console_level": "INFO",
+        "clear_on_start": true
+    },
+    "course": {
+        "key_field": "jxbmc"
+    },
+    "hdu": {
+        "newjw": {
+            "username": "",
+            "password": ""
+        },
+        "cas": {
+            "username": "",
+            "password": ""
+        },
+        "xuenian": "2026",
+        "xueqi": "1",
+        "update_schedule_after_selection": false,
+        "course_timeout": 600,
+        "course_retries": 2,
+        "schedule_timeout": 30,
+        "schedule_retries": 2,
+        "user_agent": "",
+        "cookies": {
+            "jsessionid": "",
+            "route": ""
+        }
+    },
+    "table": {
+        "default_column_width": 120
+    },
+    "info_table": {
+        "row_height": 28,
+        "max_width": 0,
+        "columns": [
+            {
+                "field": "",
+                "name": "类型",
+                "width": 40
+            },
+            {
+                "field": "kcmc",
+                "name": "课程",
+                "width": 200
+            },
+            {
+                "field": "jxbmc",
+                "name": "教学班名称",
+                "width": 200
+            },
+            {
+                "field": "sksj",
+                "name": "时间",
+                "width": 300
+            },
+            {
+                "field": "",
+                "name": "说明",
+                "width": 0
+            }
+        ]
+    },
+    "schedule": {
+        "total_weeks": 17,
+        "period_times": {
+            "1": [
+                "08:05",
+                "08:50"
+            ],
+            "2": [
+                "08:55",
+                "09:40"
+            ],
+            "3": [
+                "10:00",
+                "10:45"
+            ],
+            "4": [
+                "10:50",
+                "11:35"
+            ],
+            "5": [
+                "11:40",
+                "12:25"
+            ],
+            "6": [
+                "13:30",
+                "14:15"
+            ],
+            "7": [
+                "14:20",
+                "15:05"
+            ],
+            "8": [
+                "15:15",
+                "16:00"
+            ],
+            "9": [
+                "16:05",
+                "16:50"
+            ],
+            "10": [
+                "18:30",
+                "19:15"
+            ],
+            "11": [
+                "19:20",
+                "20:05"
+            ],
+            "12": [
+                "20:10",
+                "20:55"
+            ]
+        },
+        "weekdays": [
+            "星期一",
+            "星期二",
+            "星期三",
+            "星期四",
+            "星期五",
+            "星期六",
+            "星期日"
+        ],
+        "weekday_always": [
+            0,
+            1,
+            2,
+            3,
+            4
+        ],
+        "practice_location": "课外实践不在教室",
+        "credit_limit": 40
+    },
+    "layout": {
+        "margin": 10,
+        "spacing": 10,
+        "scroll_pad": 24
+    },
+    "export": {
+        "scale": 4
+    },
+    "window": {
+        "width": 1500,
+        "height": 800,
+        "handle_width": 8,
+        "schedule_min_width": 360,
+        "course_min_width": 280,
+        "h_min_height": 150,
+        "info_min_height": 120,
+        "splitter_h_sizes": [
+            780,
+            720
+        ],
+        "splitter_v_sizes": [
+            580,
+            220
+        ],
+        "h_stretch": [
+            6,
+            4
+        ],
+        "v_stretch": [
+            7,
+            3
+        ]
+    },
+    "dialog": {
+        "settings_width": 780,
+        "settings_height": 700
+    }
+}
+"""
+
+EXAMPLE_CONFIG = json.loads(_EXAMPLE_CONFIG_JSON)
 
 
 # 全量默认配置：config.json 缺失/缺键时回退、首次生成、兼作 schema 文档。
@@ -12,7 +355,7 @@ DEFAULT_CONFIG = {
     "files": {
         "course_pool": "course.json",
         "selected_courses": "selected_course.json",
-        "jiaowu_courses": "jiaowu_course.json",  # 教务系统已选课，用于与本地已选对比补/退选
+        "jiaowu_courses": "jiaowu_schedule.json",  # 教务系统已选课，用于与本地已选对比补/退选
     },
     "log": {
         # 运行日志（config/log_config.py 消费）。level 取级别名
@@ -136,11 +479,15 @@ def _deep_merge(base, override):
 class AppConfig:
     """config.json 的唯一读写器。全量 round-trip，分区访问。
 
-    config.json 是唯一数据来源；缺失或键不全时与 DEFAULT_CONFIG 深合并回退。
+    config.json 是唯一数据来源；缺失时以内置示例配置（EXAMPLE_CONFIG，
+    原 config.example.json）生成，键不全时与 DEFAULT_CONFIG 深合并回退。
     course_columns 由 SettingsDialog 直接读写（property），其余分区只读使用。
     """
 
-    def __init__(self, config_file='config.json'):
+    def __init__(self, config_file=None):
+        # 默认放数据主目录 ~/.shiori/；显式传入路径时以传入为准（供测试）
+        if config_file is None:
+            config_file = Path.home() / ".shiori" / "config.json"
         self.config_file = Path(config_file)
         self._data = {}
         self.load_config()
@@ -149,11 +496,11 @@ class AppConfig:
         data = {}
         if self.config_file.exists():
             data = self._read_json(self.config_file)
-        elif self._seed_from_example():
-            # 已从示例复制生成 config.json，读取复制出来的文件
-            data = self._read_json(self.config_file)
+        elif self._seed_default():
+            # 已按内置示例配置生成 config.json，直接使用（省一次读盘）
+            data = dict(EXAMPLE_CONFIG)
         else:
-            logger.info("配置文件 %s 不存在，使用默认配置", self.config_file)
+            logger.info("配置文件 %s 不存在且无法生成，使用默认配置", self.config_file)
         self._data = _deep_merge(DEFAULT_CONFIG, data)
 
     def _read_json(self, path):
@@ -167,23 +514,21 @@ class AppConfig:
             logger.warning("配置文件 %s 读取失败，使用默认配置：%s", path, e)
         return {}
 
-    def _seed_from_example(self):
-        """config.json 缺失时，复制同目录的 config.example.json 兜底。
+    def _seed_default(self):
+        """config.json 缺失时，把内置示例配置写入磁盘作首次运行配置。
 
-        复制成功返回 True（调用方随后读取复制出的文件）；示例不存在或
-        复制失败返回 False，走 DEFAULT_CONFIG 默认配置。
+        写入成功返回 True；失败（如目录不可写）返回 False，走
+        DEFAULT_CONFIG 默认配置。
         """
-        example = self.config_file.with_name("config.example.json")
-        if not example.exists():
-            logger.info("示例配置 %s 也不存在，使用内置默认配置", example)
-            return False
         try:
-            shutil.copyfile(example, self.config_file)
+            self.config_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.config_file, "w", encoding="utf-8") as f:
+                json.dump(EXAMPLE_CONFIG, f, ensure_ascii=False, indent=4)
         except OSError as e:
-            logger.warning("从 %s 复制配置失败，使用内置默认配置：%s", example, e)
+            logger.warning("写入初始配置 %s 失败，使用内置默认配置：%s",
+                           self.config_file, e)
             return False
-        logger.info("配置文件 %s 不存在，已从 %s 复制生成",
-                    self.config_file, example)
+        logger.info("配置文件 %s 不存在，已写入内置示例配置", self.config_file)
         return True
 
     def save_config(self):
