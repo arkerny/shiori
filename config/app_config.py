@@ -1,5 +1,6 @@
 import json
 import logging
+import shutil
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -147,20 +148,43 @@ class AppConfig:
     def load_config(self):
         data = {}
         if self.config_file.exists():
-            try:
-                with open(self.config_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-            except json.JSONDecodeError as e:
-                logger.warning("配置文件 %s 解析失败，使用默认配置：%s",
-                               self.config_file, e)
-                data = {}
-            except OSError as e:
-                logger.warning("配置文件 %s 读取失败，使用默认配置：%s",
-                               self.config_file, e)
-                data = {}
+            data = self._read_json(self.config_file)
+        elif self._seed_from_example():
+            # 已从示例复制生成 config.json，读取复制出来的文件
+            data = self._read_json(self.config_file)
         else:
             logger.info("配置文件 %s 不存在，使用默认配置", self.config_file)
         self._data = _deep_merge(DEFAULT_CONFIG, data)
+
+    def _read_json(self, path):
+        """读取 JSON 配置；失败时记日志并返回空 dict（回退默认配置）。"""
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except json.JSONDecodeError as e:
+            logger.warning("配置文件 %s 解析失败，使用默认配置：%s", path, e)
+        except OSError as e:
+            logger.warning("配置文件 %s 读取失败，使用默认配置：%s", path, e)
+        return {}
+
+    def _seed_from_example(self):
+        """config.json 缺失时，复制同目录的 config.example.json 兜底。
+
+        复制成功返回 True（调用方随后读取复制出的文件）；示例不存在或
+        复制失败返回 False，走 DEFAULT_CONFIG 默认配置。
+        """
+        example = self.config_file.with_name("config.example.json")
+        if not example.exists():
+            logger.info("示例配置 %s 也不存在，使用内置默认配置", example)
+            return False
+        try:
+            shutil.copyfile(example, self.config_file)
+        except OSError as e:
+            logger.warning("从 %s 复制配置失败，使用内置默认配置：%s", example, e)
+            return False
+        logger.info("配置文件 %s 不存在，已从 %s 复制生成",
+                    self.config_file, example)
+        return True
 
     def save_config(self):
         with open(self.config_file, 'w', encoding='utf-8') as f:
