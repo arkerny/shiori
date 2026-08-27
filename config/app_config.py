@@ -115,8 +115,8 @@ DEFAULT_CONFIG = {
         "v_stretch": [7, 3],
     },
     "dialog": {
-        "settings_width": 450,
-        "settings_height": 350,
+        "settings_width": 780,
+        "settings_height": 700,
     },
 }
 

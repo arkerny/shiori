@@ -215,8 +215,34 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     def _on_config_saved(self, config):
-        # 配置已在对话框中保存；让各视图按新列定义重建并刷新
+        # 配置已在对话框中保存；让各视图按新配置重建并刷新。
+        # ScheduleView 在构造时快照 schedule/layout/export 分区，需整体重建；
+        # course_view / info_panel_view 只重排列定义，数据文件路径变化则重读文件。
+        self._rebuild_schedule_view()
         self.course_view.apply_config(config)
+        self.course_view.reload_pool()
         self.info_panel_view.apply_config(config)
         self.set_hint("设置已保存")
         logger.info("设置已保存并应用")
+
+    def _rebuild_schedule_view(self):
+        """用当前配置重建课表视图并重新接线（替换 splitter 中的旧视图）。"""
+        old = self.schedule_view
+        self.schedule_view = ScheduleView(self.config)
+        w = self.config.window
+        self.schedule_view.setMinimumWidth(w.get("schedule_min_width", 360))
+        self.h_splitter.setMinimumHeight(w.get("h_min_height", 150))
+        sizes = self.h_splitter.sizes()
+        self.h_splitter.replaceWidget(self.h_splitter.indexOf(old),
+                                      self.schedule_view)
+        self.h_splitter.setSizes(sizes)
+
+        self.course_view.selection_changed.connect(self.schedule_view.update_courses)
+        self.schedule_view.conflicts_changed.connect(self.info_panel_view.update_conflicts)
+        self.schedule_view.grid_width_changed.connect(self.info_panel_view.set_table_max_width)
+        self.schedule_view.export_started.connect(self._auto_sync_schedule)
+
+        old._stop_export()
+        old.deleteLater()
+        # 用当前已选课立即渲染新课表（reload_pool 加载完成后会再次推送）
+        self.schedule_view.update_courses(self.course_view.selected_courses)
