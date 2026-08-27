@@ -1,3 +1,5 @@
+import logging
+
 from PySide6.QtCore import QObject, QPoint, Qt, QThread, Signal
 from PySide6.QtGui import QAction, QImage, QPalette, QPainter
 from PySide6.QtWidgets import (QApplication, QFileDialog, QFrame, QHBoxLayout,
@@ -8,6 +10,8 @@ from PySide6.QtWidgets import (QApplication, QFileDialog, QFrame, QHBoxLayout,
 from config.theme import (COURSE_COLORS, CONFLICT_BG, CONFLICT_FG,
                           FREE_CHIP_BG, FREE_CHIP_FG, NONE_FG, CHROME,
                           SEGMENT_RE, ITEM_SEP)
+
+logger = logging.getLogger(__name__)
 
 
 def _to_float(value):
@@ -802,6 +806,8 @@ class _ExportWorker(QObject):
         try:
             self._image.save(self._path, "PNG")
         except Exception:
+            logger.exception("导出 PNG 失败：%s", self._path)
             self.finished.emit("")
             return
+        logger.info("课表已导出到 %s", self._path)
         self.finished.emit(self._path)

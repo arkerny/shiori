@@ -1,5 +1,8 @@
 import json
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 # 全量默认配置：config.json 缺失/缺键时回退、首次生成、兼作 schema 文档。
@@ -9,6 +12,15 @@ DEFAULT_CONFIG = {
         "course_pool": "course.json",
         "selected_courses": "selected_course.json",
         "jiaowu_courses": "jiaowu_course.json",  # 教务系统已选课，用于与本地已选对比补/退选
+    },
+    "log": {
+        # 运行日志（config/log_config.py 消费）。level 取级别名
+        # DEBUG/INFO/WARNING/ERROR，非法值回退默认。
+        "file": "logs/shiori.log",  # 日志文件路径（相对运行目录）
+        "level": "DEBUG",           # 文件记录级别
+        "console": True,            # 是否同时输出到控制台
+        "console_level": "INFO",    # 控制台记录级别
+        "clear_on_start": True,     # 每次启动清空日志文件；False 改为追加
     },
     "course": {
         "key_field": "jxbmc",  # 课程唯一标识字段（教学班名称）
@@ -46,7 +58,8 @@ DEFAULT_CONFIG = {
     "info_table": {
         # 信息面板（infopanel）配置。columns 结构与 course_columns 一致
         # （{name, field, width}）；field 指向课程 dict 字段，教学班名称(jxbmc)
-        # 全局唯一，作为区分课程的 id。类型/说明 为计算列，field 留空。
+        # 全局唯一，作为区分课程的 id。field 留空为计算列：第一个空 field 列
+        # 显示“类型”（补选/退选/冲突），最后一个显示“说明”。
         # width<=0 表示该列自适应拉伸填满剩余宽度。
         "row_height": 28,        # 行高（px）
         "max_width": 0,          # 0 = 跟随上方课表网格宽度；>0 则固定上限（px）
@@ -137,8 +150,16 @@ class AppConfig:
             try:
                 with open(self.config_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
-            except (json.JSONDecodeError, OSError):
+            except json.JSONDecodeError as e:
+                logger.warning("配置文件 %s 解析失败，使用默认配置：%s",
+                               self.config_file, e)
                 data = {}
+            except OSError as e:
+                logger.warning("配置文件 %s 读取失败，使用默认配置：%s",
+                               self.config_file, e)
+                data = {}
+        else:
+            logger.info("配置文件 %s 不存在，使用默认配置", self.config_file)
         self._data = _deep_merge(DEFAULT_CONFIG, data)
 
     def save_config(self):
@@ -172,6 +193,10 @@ class AppConfig:
     @property
     def hdu(self):
         return self._data.get("hdu", {})
+
+    @property
+    def log(self):
+        return self._data.get("log", {})
 
     @property
     def table(self):

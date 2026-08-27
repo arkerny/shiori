@@ -183,11 +183,12 @@ class InfoPanelView(QWidget):
     # ---- 对比与渲染 ----
 
     def _build_rows(self):
-        """汇总三类行，每行含 5 列文本 + 底色 + 源课程（供复制）。
+        """汇总三类行，每行含底色 + 源课程（供取字段与复制）。
 
         补选（淡绿）：本地已选、教务未选 -> 需在教务系统补选。
         退选（淡黄）：教务已选、本地未选 -> 需在教务系统退选。
         冲突（淡红）：课表检测到时间冲突。
+        列文本由 _render_table 按 info_table.columns 的 field 逐列取值。
         """
         rows = []
 
@@ -227,20 +228,46 @@ class InfoPanelView(QWidget):
 
         return rows
 
+    def _computed_col_indices(self):
+        """空 field 列为计算列：第一个是“类型”，最后一个（若有多个）是“说明”。"""
+        empty = [i for i, c in enumerate(self._config.info_columns())
+                 if not c.get("field")]
+        kind = empty[0] if empty else -1
+        note = empty[-1] if len(empty) > 1 else -1
+        return kind, note
+
+    def _cell_text(self, field, rd):
+        """按列 field 取单元格文本：内置字段映射到行数据，其余查源课程 dict。"""
+        if field == "kcmc":
+            return rd["course"]
+        if field == "jxbmc":
+            return rd["jxb"]
+        if field == "sksj":
+            return rd["time"]
+        # 其他字段（如 jxbrl / fcxxkrs）：取源课程字段值，
+        # 多门课（冲突行）去重后换行拼接
+        return self._join(rd["courses"], field)
+
     def _render_table(self):
         rows = self._build_rows()
         cols = self._config.info_columns()
+        kind_col, note_col = self._computed_col_indices()
         h = self._config.info_row_height()
         self.info_table.setRowCount(len(rows))
         for r, rd in enumerate(rows):
             brush = QBrush(QColor(rd["bg"]))
-            texts = [rd["kind"], rd["course"], rd["jxb"], rd["time"], rd["note"]]
-            for col in range(min(len(texts), len(cols))):
-                item = QTableWidgetItem(texts[col])
+            for col, c in enumerate(cols):
+                if col == kind_col:
+                    text = rd["kind"]
+                elif col == note_col:
+                    text = rd["note"]
+                else:
+                    text = self._cell_text(c.get("field", ""), rd)
+                item = QTableWidgetItem(text)
                 item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
                 item.setBackground(brush)
                 # 鼠标悬停显示完整内容（含被截断部分）
-                item.setToolTip(texts[col])
+                item.setToolTip(text)
                 # 第 0 列记录源课程与说明，供右键复制
                 if col == 0:
                     item.setData(Qt.UserRole,

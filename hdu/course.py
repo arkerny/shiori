@@ -9,11 +9,14 @@
 """
 
 import json
+import logging
 import time
 from pathlib import Path
 
 from hdu.client import (LoginError, NOT_LOGGED_IN, as_int,
                         query_with_relogin, query_with_retry)
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 600  # 服务端要聚合全量课程，实测约 2 分钟，高峰时更久
 
@@ -153,8 +156,9 @@ def fetch_courses(app_config):
                                   timeout=timeout),
             retries, "课程查询", CourseError)
 
-    print("正在从教务系统获取课程（服务端聚合慢，约 2 分钟，请耐心等待）...")
+    logger.info("正在从教务系统获取课程（服务端聚合慢，约 2 分钟，请耐心等待）...")
     courses = query_with_relogin(app_config, query)
     save_local_courses(app_config, courses)
-    print(f"已保存 {len(courses)} 门课程到 {app_config.files.get('course_pool')}")
+    logger.info("已保存 %d 门课程到 %s",
+                len(courses), app_config.files.get("course_pool"))
     return courses

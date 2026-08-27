@@ -1,3 +1,5 @@
+import logging
+
 from PySide6.QtWidgets import (QMainWindow, QSplitter, QLabel, QProgressBar,
                                QWidget, QHBoxLayout)
 from PySide6.QtCore import Qt, QTimer
@@ -10,11 +12,14 @@ from ui.infopanel_view import InfoPanelView
 from ui.settings_dialog import SettingsDialog
 from ui.hdu_sync import HduSyncManager, config_ready
 
+logger = logging.getLogger(__name__)
+
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, config=None):
         super().__init__()
         self.setWindowTitle("Shiori")
-        self.config = AppConfig()  # 唯一配置实例，统一供各视图调用
+        # 唯一配置实例，统一供各视图调用；main.py 传入以复用其读到的配置
+        self.config = config or AppConfig()
 
         w = self.config.window
         self.resize(w.get("width", 1500), w.get("height", 800))
@@ -84,7 +89,10 @@ class MainWindow(QMainWindow):
 
         # 打开时自动更新个人课表：hdu 配置（账号 + 学年学期）完备才做
         if config_ready(self.config.hdu):
+            logger.info("hdu 配置完备，启动时自动更新个人课表")
             QTimer.singleShot(0, self._auto_sync_schedule)
+        else:
+            logger.info("hdu 配置不完备（缺账号或学年学期），跳过自动更新")
 
     def closeEvent(self, event):
         """退出前等待后台线程结束，避免 QThread 析构时仍运行而 abort。"""
@@ -211,3 +219,4 @@ class MainWindow(QMainWindow):
         self.course_view.apply_config(config)
         self.info_panel_view.apply_config(config)
         self.set_hint("设置已保存")
+        logger.info("设置已保存并应用")

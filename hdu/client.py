@@ -7,12 +7,15 @@
 """
 
 import base64
+import logging
 import re
 import time
 
 import requests
 from Crypto.Cipher import AES, PKCS1_v1_5
 from Crypto.PublicKey import RSA
+
+logger = logging.getLogger(__name__)
 
 NEWJW_BASE = "https://newjw.hdu.edu.cn/jwglxt"
 CAS_BASE = "https://sso.hdu.edu.cn"
@@ -143,9 +146,10 @@ class JwClient:
                 continue
             try:
                 method(account["username"], account["password"])
+                logger.info("%s 登录成功", name)
                 return name
             except LoginError as e:
-                print(f"{name} 登录失败: {e}")
+                logger.warning("%s 登录失败: %s", name, e)
                 self.session.cookies.clear()  # 换方式前重置会话（对应 Go 版 NewClient）
                 last_error = e
         if last_error:
@@ -193,11 +197,12 @@ def login_with_config(app_config, force_password=False):
     cookies = hdu.get("cookies", {})
     if not force_password and cookies.get("enabled") \
             and cookies.get("jsessionid") and cookies.get("route"):
-        print("尝试已保存的 cookies...")
+        logger.info("尝试已保存的 cookies...")
         client.load_cookies(cookies)
         if client.logged_in():
+            logger.info("cookies 有效，免登录成功")
             return client
-        print("cookies 已过期，改用密码登录")
+        logger.info("cookies 已过期，改用密码登录")
         client = JwClient(hdu.get("user_agent") or None)  # 重置会话
 
     # 2. 密码登录
@@ -220,7 +225,7 @@ def query_with_relogin(app_config, query):
     try:
         return query(client)
     except LoginError:
-        print("登录态已过期，重新登录后重试...")
+        logger.warning("登录态已过期，重新登录后重试...")
         client = login_with_config(app_config, force_password=True)
         return query(client)
 
@@ -242,12 +247,14 @@ def query_with_retry(func, retries, what, error_cls, step=3, max_wait=10):
     for attempt in range(retries + 1):
         if attempt:
             wait = min(step * attempt, max_wait)
-            print(f"{what}超时或网络错误，{wait}s 后进行第 {attempt + 1} 次尝试...")
+            logger.warning("%s超时或网络错误，%ds 后进行第 %d 次尝试...",
+                           what, wait, attempt + 1)
             time.sleep(wait)
         try:
             return func()
         except LoginError:
             raise
         except requests.RequestException as e:
-            print(f"{what}失败（第 {attempt + 1} 次尝试）: {e}")
+            logger.warning("%s失败（第 %d 次尝试）: %s", what, attempt + 1, e)
+    logger.error("%s连续 %d 次超时或网络错误，放弃重试", what, retries + 1)
     raise error_cls(f"{what}连续 {retries + 1} 次超时或网络错误")

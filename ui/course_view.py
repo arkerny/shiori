@@ -1,3 +1,5 @@
+import logging
+
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
                                QTableWidget, QHeaderView,
                                QTableWidgetItem, QAbstractItemView,
@@ -9,6 +11,8 @@ from config.app_config import AppConfig
 from data.course_loader import load_courses_from_file
 from data.selection_store import load_selected_courses, save_selected_courses
 from ui import search as search_logic
+
+logger = logging.getLogger(__name__)
 
 """
 搜索语法（见 refresh 与 ui.search）：
@@ -96,6 +100,8 @@ class CourseView(QWidget):
 
     def _on_loaded(self, pool, selected):
         """后台加载完成，在 UI 线程填充数据。"""
+        logger.info("本地数据加载完成：课程池 %d 门，已选 %d 门",
+                    len(pool), len(selected))
         self.raw_course_data = pool
         self.selected_courses = selected
         self.selected_keys = {self._key(c) for c in selected}

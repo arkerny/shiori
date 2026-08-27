@@ -1,4 +1,7 @@
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def load_courses_from_file(path):
@@ -9,6 +12,10 @@ def load_courses_from_file(path):
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
+    except FileNotFoundError:
+        logger.debug("课程池文件不存在（首次启动属正常）：%s", path)
+        return []
+    except json.JSONDecodeError as e:
+        logger.warning("课程池文件解析失败，按空课程池处理：%s（%s）", path, e)
         return []
     return data if isinstance(data, list) else []

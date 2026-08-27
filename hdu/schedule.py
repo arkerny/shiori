@@ -9,11 +9,14 @@ POST /jwglxt/xkcx/xkmdcx_cxXkmdcxIndex.html?doType=query&gnmkdm=N255010
 """
 
 import json
+import logging
 import time
 from pathlib import Path
 
 from hdu.client import (LoginError, NOT_LOGGED_IN, as_int,
                         query_with_relogin, query_with_retry)
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 30  # 个人已选课列表很小，秒级返回
 
@@ -111,6 +114,6 @@ def fetch_schedule(app_config):
 
     schedule = query_with_relogin(app_config, query)
     save_local_schedule(app_config, schedule)
-    print(f"已保存 {len(schedule)} 门已选课程到 "
-          f"{app_config.files.get('jiaowu_courses')}")
+    logger.info("已保存 %d 门已选课程到 %s",
+                len(schedule), app_config.files.get("jiaowu_courses"))
     return schedule

@@ -156,6 +156,13 @@
         "selected_courses": "selected_course.json",
         "jiaowu_courses": "jiaowu_schedule.json"
     },
+    "log": {
+        "file": "logs/shiori.log",
+        "level": "DEBUG",
+        "console": true,
+        "console_level": "INFO",
+        "clear_on_start": true
+    },
     "course": {
         "key_field": "jxbmc"
     },

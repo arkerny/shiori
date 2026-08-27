@@ -4,10 +4,14 @@
 进度提示与连接状态；任务成功后通知对应视图刷新本地文件。
 """
 
+import logging
+
 from PySide6.QtCore import QObject, QThread, Signal
 
 from hdu import fetch_courses as fetch_courses_online
 from hdu import fetch_schedule as fetch_schedule_online
+
+logger = logging.getLogger(__name__)
 
 
 def config_ready(hdu_cfg):
@@ -38,6 +42,7 @@ class FetchWorker(QObject):
         try:
             self.finished.emit(self._func(), None)
         except Exception as e:  # 登录失败 / 网络异常等，统一回报给 UI
+            logger.exception("在线拉取任务异常")  # 落完整堆栈便于排查
             self.finished.emit(None, str(e) or e.__class__.__name__)
 
 
@@ -67,7 +72,7 @@ class HduSyncManager(QObject):
     def fetch_courses(self):
         """手动更新课程池（任务落实查询，约 2 分钟）。"""
         return self._start(
-            "正在更新课程信息（服务端聚合慢，约 2 分钟，请耐心等待）…",
+            "正在更新课程信息，需要约 2 分钟，请耐心等待）…",
             lambda: fetch_courses_online(self._config),
             lambda result: (self.courses_updated.emit(len(result)),
                             f"课程信息已更新（{len(result)} 门）")[1],
@@ -89,6 +94,7 @@ class HduSyncManager(QObject):
             return False
         self._done_cb = done_cb
         self.task_started.emit(label)
+        logger.info("启动在线同步任务：%s", label)
 
         worker = FetchWorker(func)
         thread = QThread()
@@ -107,8 +113,11 @@ class HduSyncManager(QObject):
         """回到主线程：汇报结果（线程引用由 thread.finished 统一清理）。"""
         if error is None:
             message = self._done_cb(result)
+            logger.info("在线同步任务完成：%s", message)
         else:
+            # 失败详情（含堆栈）已由 FetchWorker 记录，这里只留结果摘要
             message = f"更新失败：{error}"
+            logger.warning("在线同步任务失败：%s", message)
         self._done_cb = None
         self.task_finished.emit(error is None, message)
 

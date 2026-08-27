@@ -1,4 +1,7 @@
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def load_selected_courses(path):
@@ -6,7 +9,11 @@ def load_selected_courses(path):
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
+    except FileNotFoundError:
+        logger.debug("已选课程文件不存在（首次启动属正常）：%s", path)
+        return []
+    except json.JSONDecodeError as e:
+        logger.warning("已选课程文件解析失败，按空列表处理：%s（%s）", path, e)
         return []
     return data if isinstance(data, list) else []
 

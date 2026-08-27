@@ -35,13 +35,16 @@
         教师姓名与教师工号视作同一教师类，搜其一即可命中。
 """
 
+import logging
 import re
 
 try:
     from pypinyin import lazy_pinyin, Style as _PinyinStyle
     _HAS_PINYIN = True
-except ImportError:  # 未装 pypinyin 时静默降级，教师名仍按中文包含匹配
+except ImportError:  # 未装 pypinyin 时降级，教师名仍按中文包含匹配
     _HAS_PINYIN = False
+    logging.getLogger(__name__).warning(
+        "未安装 pypinyin，拼音首字母搜索不可用（教师名仍可按中文匹配）")
 
 _PINYIN_CACHE = {}  # value(str) -> 首字母串，教师名重复率高，缓存避免重复计算
 
