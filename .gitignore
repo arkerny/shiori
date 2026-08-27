@@ -1,0 +1,9 @@
+.DS_Store
+.vscode
+.venv
+config.json
+course.json
+jiaowu_schedule.json
+selected_course.json
+__pycache__
+HDU-KillCourse
