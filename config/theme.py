@@ -49,6 +49,10 @@ CHROME = {
     "separator": "#D8DEE6",  # 单元格分隔线
 }
 
+# 默认字体（main.py 启动时应用到 QApplication）。列表依次探测，
+# 均未安装时保持系统默认字体。
+FONT_FAMILIES = ["PingFang SC", "LXGW WenKai"]
+
 # sksj 分段正则（匹配数据源格式：星期X第N-M节{周次}）
 SEGMENT_RE = re.compile(
     r"星期([一二三四五六日])第([\d,\-]+)节\{([^}]*)\}"
