@@ -32,12 +32,6 @@ _EXAMPLE_CONFIG_JSON = """
             "width": 30
         },
         {
-            "field": "kkbm",
-            "name": "开课学院",
-            "visible": false,
-            "width": 110
-        },
-        {
             "field": "kch",
             "name": "课程代码",
             "visible": false,
@@ -86,9 +80,15 @@ _EXAMPLE_CONFIG_JSON = """
             "width": 350
         },
         {
+            "field": "kkbm",
+            "name": "开课学院",
+            "visible": true,
+            "width": 110
+        },
+        {
             "field": "jxdd",
             "name": "教学地点",
-            "visible": false,
+            "visible": true,
             "width": 200
         },
         {
@@ -118,7 +118,7 @@ _EXAMPLE_CONFIG_JSON = """
         {
             "field": "kcgsmc",
             "name": "课程归属",
-            "visible": false,
+            "visible": true,
             "width": 50
         },
         {
@@ -142,7 +142,7 @@ _EXAMPLE_CONFIG_JSON = """
         {
             "field": "kkztmc",
             "name": "开课状态",
-            "visible": true,
+            "visible": false,
             "width": 80
         },
         {
@@ -227,6 +227,16 @@ _EXAMPLE_CONFIG_JSON = """
                 "field": "sksj",
                 "name": "时间",
                 "width": 300
+            },
+            {
+                "field": "jxbrl",
+                "name": "教学班容量",
+                "width": 80
+            },
+            {
+                "field": "fcxxkrs",
+                "name": "已选人数",
+                "width": 80
             },
             {
                 "field": "",
