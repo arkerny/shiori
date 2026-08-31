@@ -45,3 +45,5 @@ newjw 教务系统对接功能由 [HDU-KillCourse](https://github.com/cr4n5/HDU-
 ## 关于开发
 
 欢迎提 issue，精美的 UI 和部分繁杂的逻辑的程序是 vibe 的（但 100% 人工 Review），其余（极小部分）为手写~
+
+本项目开发于 macOS，会优先保证在 macOS 下的可用性，对于 UI 的一些神奇 bug 可能不会修复，见谅。如有条件可以来提 pr。
