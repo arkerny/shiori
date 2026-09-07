@@ -6,6 +6,9 @@ A simple schedule application for HDU.
 
 PS: 理论上来说任何学校的系统都能接进来，改动 newjw 里面的内容即可（可能还需要重写一下该死的 json 和 hdu 的匹配）
 
+<img width="1470" height="832" alt="图片" src="https://github.com/user-attachments/assets/d7f4fe45-bc61-4b3a-be11-de4822ff02df" />
+
+
 ## 如何运行
 
 目前仅支持从源码运行。
