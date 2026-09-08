@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 NEWJW_BASE = "https://newjw.hdu.edu.cn/jwglxt"
 CAS_BASE = "https://sso.hdu.edu.cn"
 DEFAULT_USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/149.0.0.0"
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36"
 )
 
 TIMEOUT = 30  # 普通请求的超时秒数
