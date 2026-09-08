@@ -161,26 +161,14 @@ class MainWindow(QMainWindow):
         self.set_hint(message)
         self.info_panel_view.set_sync_busy(False)
         if ok:
-            self.set_connection_state("● 已连接", "#4CAF50")
+            self.set_connection_state("● 已连接", CHROME["ok"])
         else:
-            self.set_connection_state("● 未连接", "#B42318")
+            self.set_connection_state("● 未连接", CHROME["danger"])
 
-    # 状态栏统一字体格式（提示信息、导出状态、连接状态共用）
-    _STATUS_LABEL_STYLE = "color:#888; border:none; font-size:12px;"
-
-    # 进度条：细圆角条，轨道用网格线色，滑块用蓝色渐变（忙模式动画）
-    _PROGRESS_STYLE = f"""
-        QProgressBar {{
-            border: none;
-            border-radius: 5px;
-            background: {CHROME['gridline']};
-        }}
-        QProgressBar::chunk {{
-            border-radius: 5px;
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                        stop:0 #7BA6FF, stop:1 #4C7DFF);
-        }}
-    """
+    # 状态栏统一字体格式（提示信息、导出状态、连接状态共用）；
+    # 进度条样式由全局样式表统一下发（config/theme._global_stylesheet）
+    _STATUS_LABEL_STYLE = (f"color:{CHROME['status']};"
+                           f" border:none; font-size:12px;")
 
     def _setup_status_bar(self):
         """常驻状态栏：左侧提示信息，右侧进度条与教务系统连接状态。
@@ -199,10 +187,10 @@ class MainWindow(QMainWindow):
 
         # 进度条：导出/在线更新等任务以不确定模式显示，默认隐藏。
         # 外包一层容器提供右侧 12px 间距，与连接状态标签拉开距离。
+        # 样式由全局样式表统一下发。
         self.status_progress = QProgressBar()
         self.status_progress.setFixedSize(140, 10)
         self.status_progress.setTextVisible(False)
-        self.status_progress.setStyleSheet(self._PROGRESS_STYLE)
         self.status_progress.setVisible(False)
         progress_wrap = QWidget()
         wrap_layout = QHBoxLayout(progress_wrap)
@@ -230,11 +218,12 @@ class MainWindow(QMainWindow):
         self.status_progress.setRange(0, 0)  # 0..0 = 不确定（忙）动画
         self.status_progress.setVisible(busy)
 
-    def set_connection_state(self, text: str, color: str = "#888"):
+    def set_connection_state(self, text: str, color: str = None):
         """更新教务系统连接状态指示（保持统一字体格式）。"""
         self.status_conn.setText(text)
         self.status_conn.setStyleSheet(
-            f"color:{color}; border:none; font-size:12px;")
+            f"color:{color or CHROME['status']};"
+            f" border:none; font-size:12px;")
 
     def _open_settings(self):
         dlg = SettingsDialog(self.config, self)

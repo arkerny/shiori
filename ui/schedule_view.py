@@ -1,15 +1,13 @@
 import logging
 
 from PySide6.QtCore import QObject, QPoint, Qt, QThread, Signal
-from PySide6.QtGui import QAction, QImage, QPalette, QPainter
+from PySide6.QtGui import QAction, QColor, QImage, QPainter
 from PySide6.QtWidgets import (QApplication, QFileDialog, QFrame, QHBoxLayout,
                                QHeaderView, QLabel, QMenu, QPushButton,
                                QSizePolicy, QTableWidget, QTableWidgetItem,
                                QVBoxLayout, QWidget)
 
-from config.theme import (COURSE_COLORS, CONFLICT_BG, CONFLICT_FG,
-                          FREE_CHIP_BG, FREE_CHIP_FG, NONE_FG, CHROME,
-                          SEGMENT_RE, ITEM_SEP)
+from config.theme import (CHROME, COURSE_COLORS, SEGMENT_RE, item_sep)
 
 logger = logging.getLogger(__name__)
 
@@ -207,7 +205,8 @@ def _build_day_cells(raw):
 
 
 def _cell_bg(cell):
-    return CONFLICT_BG if cell.conflicted else cell.items[0].color[0]
+    return (CHROME["conflict_bg"] if cell.conflicted
+            else cell.items[0].color[0])
 
 
 class ScheduleView(QWidget):
@@ -348,7 +347,9 @@ class ScheduleView(QWidget):
         for p, (start, end) in self._period_times.items():
             item = QTableWidgetItem(f"{p}\n{start}\n{end}")
             item.setTextAlignment(Qt.AlignCenter)
-            item.setForeground(table.palette().color(QPalette.Mid))
+            # 固定色值，不取系统调色板：QPalette.Mid 在 Linux GTK 主题下
+            # 是接近边框的浅灰，白底上几乎不可见（macOS 正常，Ubuntu 复现）
+            item.setForeground(QColor(CHROME["muted"]))
             item.setFlags(Qt.NoItemFlags)
             table.setItem(p - 1, 0, item)
 
@@ -358,13 +359,13 @@ class ScheduleView(QWidget):
         """空闲周次 -> 彩色底色标签 HTML；无空闲时显示弱化的'无'。"""
         free = set(range(1, self._total_weeks + 1)) - weeks
         if not free:
-            return f"<span style='color:{NONE_FG};'>无</span>"
+            return f"<span style='color:{CHROME['none_fg']};'>无</span>"
         chips = []
         for s, e in _runs_of(free):
             label = str(s) if s == e else f"{s}-{e}"
             chips.append(
-                f"<span style='background-color:{FREE_CHIP_BG};"
-                f" color:{FREE_CHIP_FG};'>{label}周</span>")
+                f"<span style='background-color:{CHROME['free_chip_bg']};"
+                f" color:{CHROME['free_chip_fg']};'>{label}周</span>")
         return " ".join(chips)
 
     def _item_html(self, item):
@@ -391,9 +392,10 @@ class ScheduleView(QWidget):
 
     def _cell_html(self, cell):
         """整格内容：多课程项以分隔线串联，冲突时加警示横幅。"""
-        inner = ITEM_SEP.join(self._item_html(it) for it in cell.items)
+        inner = item_sep().join(self._item_html(it) for it in cell.items)
         if cell.conflicted:
-            banner = (f"<div style='color:{CONFLICT_FG}; font-weight:700;"
+            banner = (f"<div style='color:{CHROME['conflict_fg']};"
+                      f" font-weight:700;"
                       f" font-size:11px; margin-bottom:2px;'>⚠ 时间冲突</div>")
             return banner + inner
         return inner
@@ -497,7 +499,7 @@ class ScheduleView(QWidget):
             excess_text = (f"{excess:.0f}" if excess.is_integer()
                            else f"{excess:.2f}")
             self.label_credit_over.setText(
-                f"<b style=\"font-size:12px; color:{CONFLICT_FG};\">"
+                f"<b style=\"font-size:12px; color:{CHROME['conflict_fg']};\">"
                 f"⚠ 超出学分上限 {excess_text} 学分</b>")
             self.label_credit_over.setVisible(True)
         else:
@@ -507,7 +509,7 @@ class ScheduleView(QWidget):
             f"<span style=\"color:{CHROME['muted']}; font-size:12px;\"> 门课程</span>")
         if self._conflicts > 0:
             self.label_conflicts.setText(
-                f"<b style=\"font-size:12px; color:{CONFLICT_FG};\">"
+                f"<b style=\"font-size:12px; color:{CHROME['conflict_fg']};\">"
                 f"⚠ {self._conflicts} 处时间冲突</b>")
             self.label_conflicts.setVisible(True)
         else:

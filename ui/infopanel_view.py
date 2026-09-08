@@ -4,8 +4,7 @@ from PySide6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QTableWidget,
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QAction
 
-from config.theme import (INFO_BG_ADD, INFO_BG_DROP, INFO_BG_CONFLICT,
-                          CHROME)
+from config.theme import CHROME
 from data.course_loader import load_courses_from_file
 
 
@@ -204,13 +203,13 @@ class InfoPanelView(QWidget):
             if self._key(c) not in jiaowu_keys:
                 rows.append(row("补选", self._name(c), self._jxb(c),
                                 self._time(c), "需补选",
-                                INFO_BG_ADD, [c]))
+                                CHROME["info_bg_add"], [c]))
         # 退选：教务已选但本地未选
         for c in self._jiaowu_courses:
             if self._key(c) not in selected_keys:
                 rows.append(row("退选", self._name(c), self._jxb(c),
                                 self._time(c), "需退选",
-                                INFO_BG_DROP, [c]))
+                                CHROME["info_bg_drop"], [c]))
 
         # 冲突：课程名后附教学班名称，说明从简
         for desc in self._conflicts:
@@ -224,7 +223,7 @@ class InfoPanelView(QWidget):
                     if overlap and overlap != "无"
                     else f"{pairs} 时间冲突")
             rows.append(row("冲突", names, jxbs, desc.get("time", ""),
-                            note, INFO_BG_CONFLICT, list(courses)))
+                            note, CHROME["info_bg_conflict"], list(courses)))
 
         return rows
 

@@ -3,8 +3,9 @@ import logging
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
                                QTableWidget, QHeaderView,
                                QTableWidgetItem, QAbstractItemView,
-                               QMenu, QApplication)
-from PySide6.QtCore import Qt, Signal, QThread, QObject, QTimer
+                               QMenu, QApplication, QStyledItemDelegate,
+                               QStyle, QStyleOptionViewItem, QStyleOptionButton)
+from PySide6.QtCore import Qt, Signal, QThread, QObject, QTimer, QRect
 from PySide6.QtGui import QAction, QShortcut, QKeySequence
 
 from config.app_config import AppConfig
@@ -54,6 +55,41 @@ class CourseLoaderWorker(QObject):
         self.finished.emit(pool, selected)
 
 
+class CenteredCheckDelegate(QStyledItemDelegate):
+    """“选择”列勾选指示器居中绘制。
+
+    默认样式中勾选指示器固定画在单元格左侧（不受 setTextAlignment
+    影响），窄列（如 30px 的“选择”列）下贴边不对称。此委托只经
+    setItemDelegateForColumn 挂在“选择”列上，其余列不经过它；
+    背景（选中/悬停/隔行）仍按默认绘制。
+    """
+
+    def paint(self, painter, option, index):
+        if not (index.flags() & Qt.ItemIsUserCheckable):  # 防御：非勾选格
+            super().paint(painter, option, index)
+            return
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        # 画默认内容（选中/悬停/隔行底色），但去掉指示器与文字
+        opt.features &= ~QStyleOptionViewItem.HasCheckIndicator
+        opt.text = ""
+        style = opt.widget.style() if opt.widget else QApplication.style()
+        style.drawControl(QStyle.CE_ItemViewItem, opt, painter, opt.widget)
+        # 格子中央画勾选指示器
+        w = style.pixelMetric(QStyle.PM_IndicatorWidth, opt, opt.widget)
+        h = style.pixelMetric(QStyle.PM_IndicatorHeight, opt, opt.widget)
+        cb = QStyleOptionButton()
+        cb.rect = QRect(opt.rect.center().x() - w // 2,
+                        opt.rect.center().y() - h // 2, w, h)
+        cb.state = QStyle.State_Enabled
+        if opt.checkState == Qt.Checked:
+            cb.state |= QStyle.State_On
+        elif opt.checkState == Qt.PartiallyChecked:
+            cb.state |= QStyle.State_NoChange
+        style.drawPrimitive(QStyle.PE_IndicatorCheckBox, cb,
+                            painter, opt.widget)
+
+
 class CourseView(QWidget):
     selection_changed = Signal(list)  # 发射当前已选课程(dict)列表，供 schedule_view 等使用
     selection_toggled = Signal()      # 用户改变勾选（点击或空格框选）后（供主窗口按配置触发个人课表更新）
@@ -67,6 +103,7 @@ class CourseView(QWidget):
         self.current_config = config
         self._loader_thread = None
         self._loader_worker = None
+        self._check_delegate = None  # “选择”列勾选框居中委托（按列挂载）
         self.init_ui()
         self.update_table_columns()    # 先建好表头（空数据）
         self._start_loader()           # 后台加载数据，完成后填充
@@ -223,7 +260,24 @@ class CourseView(QWidget):
                                  else self._default_col_width())
         self.table.setRowCount(0)
         self.table.blockSignals(False)
+        self._apply_check_delegate(columns)
         self.refresh()
+
+    def _apply_check_delegate(self, columns):
+        """勾选框居中委托只挂在“选择”列，其余列一律走默认绘制。
+
+        列重建时先清掉旧列上的委托（“选择”列位置可能变化）。
+        """
+        table = self.table
+        for col in range(table.columnCount()):
+            table.setItemDelegateForColumn(col, None)
+        check_col = next((i for i, c in enumerate(columns)
+                          if c.get("name") == "选择"), -1)
+        if check_col < 0:
+            return
+        if self._check_delegate is None:
+            self._check_delegate = CenteredCheckDelegate(table)
+        table.setItemDelegateForColumn(check_col, self._check_delegate)
 
     def refresh(self):
         """

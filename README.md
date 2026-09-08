@@ -29,6 +29,14 @@ python main.py
 
 首次启动时会自动在 `~/.shiori/` 下生成 `config.json`（数据目录，课程缓存与日志也存放在这里）。打开设置对话框填入教务系统账号（newjw 或 cas，newjw 优先，失败自动换 cas）以及学年学期后即可开始使用。
 
+### Linux 的 fcitx 中文输入问题
+
+``` sh
+sudo apt install fcitx5-frontend-qt6
+```
+
+查到可以这样解决，可以尝试下，主包没有长期使用的 Linux 桌面环境
+
 ## 如何使用
 
 基本排课流程如下：

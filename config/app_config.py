@@ -2,6 +2,8 @@ import json
 import logging
 from pathlib import Path
 
+from config.theme import _DEFAULT_CHROME, _DEFAULT_COURSE_COLORS
+
 logger = logging.getLogger(__name__)
 
 
@@ -178,6 +180,9 @@ _EXAMPLE_CONFIG_JSON = """
     },
     "course": {
         "key_field": "jxbmc"
+    },
+    "font": {
+        "families": []
     },
     "hdu": {
         "newjw": {
@@ -357,6 +362,9 @@ _EXAMPLE_CONFIG_JSON = """
 """
 
 EXAMPLE_CONFIG = json.loads(_EXAMPLE_CONFIG_JSON)
+# 首装配置也带上 theme 分区（与默认值相同），用户开箱即可看到并编辑
+EXAMPLE_CONFIG["theme"] = {**_DEFAULT_CHROME,
+                           "course_colors": [list(p) for p in _DEFAULT_COURSE_COLORS]}
 
 
 # 全量默认配置：config.json 缺失/缺键时回退、首次生成、兼作 schema 文档。
@@ -378,6 +386,18 @@ DEFAULT_CONFIG = {
     },
     "course": {
         "key_field": "jxbmc",  # 课程唯一标识字段（教学班名称）
+    },
+    "font": {
+        # 全局默认字体（main.py 启动时应用到 QApplication）。families
+        # 依次探测本机已安装的字体族，取第一个命中的；空 = 系统默认。
+        "families": [],
+    },
+    "theme": {
+        # 全局主题配色（config/theme.py 消费）：所有 UI 颜色的唯一来源，
+        # 不读系统主题，跨平台呈现一致（以 macOS 为基准）。含框架/文字/
+        # 交互/语义底色与课程格循环配色；默认值定义于 config/theme.py。
+        **_DEFAULT_CHROME,
+        "course_colors": [list(p) for p in _DEFAULT_COURSE_COLORS],
     },
     "hdu": {
         # 教务系统（newjw）对接配置，供 hdu 模块使用。
@@ -486,6 +506,20 @@ def _deep_merge(base, override):
     return out
 
 
+def _missing_keys(base, data, prefix=""):
+    """找出 data 相对 base（全量默认）缺失的键路径列表。
+
+    只看“缺”，不看“异”：值不同的键以用户配置为准，不算缺失。
+    """
+    missing = []
+    for key, value in base.items():
+        if key not in data:
+            missing.append(prefix + key)
+        elif isinstance(value, dict) and isinstance(data[key], dict):
+            missing += _missing_keys(value, data[key], prefix + key + ".")
+    return missing
+
+
 class AppConfig:
     """config.json 的唯一读写器。全量 round-trip，分区访问。
 
@@ -503,18 +537,28 @@ class AppConfig:
         self.load_config()
 
     def load_config(self):
+        existed = self.config_file.exists()
         data = {}
-        if self.config_file.exists():
+        valid = True
+        if existed:
             data = self._read_json(self.config_file)
+            if data is None:  # 读取/解析失败，无法安全迁移，仅回退内存默认
+                data = {}
+                valid = False
         elif self._seed_default():
             # 已按内置示例配置生成 config.json，直接使用（省一次读盘）
             data = dict(EXAMPLE_CONFIG)
         else:
             logger.info("配置文件 %s 不存在且无法生成，使用默认配置", self.config_file)
         self._data = _deep_merge(DEFAULT_CONFIG, data)
+        # 旧版本配置迁移：检测到缺键时把缺省值直接补写进文件
+        if existed and valid:
+            missing = _missing_keys(DEFAULT_CONFIG, data)
+            if missing:
+                self._backfill_missing(missing)
 
     def _read_json(self, path):
-        """读取 JSON 配置；失败时记日志并返回空 dict（回退默认配置）。"""
+        """读取 JSON 配置；失败时记日志并返回 None（调用方回退默认配置）。"""
         try:
             with open(path, 'r', encoding='utf-8') as f:
                 return json.load(f)
@@ -522,7 +566,22 @@ class AppConfig:
             logger.warning("配置文件 %s 解析失败，使用默认配置：%s", path, e)
         except OSError as e:
             logger.warning("配置文件 %s 读取失败，使用默认配置：%s", path, e)
-        return {}
+        return None
+
+    def _backfill_missing(self, missing):
+        """旧版本配置缺键迁移：把深合并后的全量配置写回磁盘。
+
+        写回后文件与运行时内存一致，新键以缺省值落盘，用户可直接
+        看到/编辑；写失败只记日志不影响本次运行（内存里已是补全值）。
+        """
+        try:
+            with open(self.config_file, "w", encoding="utf-8") as f:
+                json.dump(self._data, f, ensure_ascii=False, indent=4)
+        except OSError as e:
+            logger.warning("补全配置缺键 %s 失败：%s", self.config_file, e)
+        else:
+            logger.info("检测到旧版本配置缺键，已补全缺省值：%s",
+                        ", ".join(missing))
 
     def _seed_default(self):
         """config.json 缺失时，把内置示例配置写入磁盘作首次运行配置。
@@ -568,6 +627,18 @@ class AppConfig:
     @property
     def course(self):
         return self._data.get("course", {})
+
+    @property
+    def font(self):
+        return self._data.get("font", {})
+
+    def font_families(self):
+        """字体族列表（list[str]）；空 = 使用系统默认字体。"""
+        return self.font.get("families", [])
+
+    @property
+    def theme(self):
+        return self._data.get("theme", {})
 
     @property
     def hdu(self):
