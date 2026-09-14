@@ -62,7 +62,7 @@ def query_schedule(client, xuenian, xueqi, timeout=DEFAULT_TIMEOUT):
         "xdbj": "",          # 选订标记
         "fxbj": "",          # 辅修标记
         "cxbj": "",          # 重修标记
-        "zxbj": "",          # 在线标记
+        "zxbj": "",          # 免听标记（响应中为“是”=免听：课仍显示但周次算空闲）
         "sfzbh_kcflsj": "",  # 是否主办_课程分类筛选
         "cxlx": "",          # 查询类型
         "zyfx_id": "",       # 专业方向

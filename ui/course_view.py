@@ -10,7 +10,8 @@ from PySide6.QtGui import QAction, QShortcut, QKeySequence
 
 from config.app_config import AppConfig
 from data.course_loader import load_courses_from_file
-from data.selection_store import load_selected_courses, save_selected_courses
+from data.selection_store import (apply_audit_marks, load_selected_courses,
+                                  save_selected_courses)
 from ui import search as search_logic
 
 logger = logging.getLogger(__name__)
@@ -44,14 +45,19 @@ class CourseLoaderWorker(QObject):
     """后台加载开课课程池与已选课程，避免大文件解析阻塞 UI。"""
     finished = Signal(list, list)  # (course_pool, selected_courses)
 
-    def __init__(self, pool_path, selected_path):
+    def __init__(self, pool_path, selected_path, jiaowu_path, key_field):
         super().__init__()
         self._pool_path = pool_path
         self._selected_path = selected_path
+        self._jiaowu_path = jiaowu_path
+        self._key_field = key_field
 
     def run(self):
         pool = load_courses_from_file(self._pool_path)
         selected = load_selected_courses(self._selected_path)
+        # 免听标记以教务个人课表为准，盖到已选记录上再发信号
+        selected = apply_audit_marks(selected, self._jiaowu_path,
+                                     self._key_field)
         self.finished.emit(pool, selected)
 
 
@@ -117,6 +123,10 @@ class CourseView(QWidget):
         return self.current_config.files.get(
             "selected_courses", "selected_courses.json")
 
+    def _jiaowu_file(self):
+        return self.current_config.files.get(
+            "jiaowu_courses", "jiaowu_schedule.json")
+
     def _key_field(self):
         return self.current_config.course.get("key_field", "jxbmc")
 
@@ -126,7 +136,8 @@ class CourseView(QWidget):
     def _start_loader(self):
         """在后台线程加载课程数据，防止大文件解析阻塞 UI。"""
         self._loader_worker = CourseLoaderWorker(
-            self._pool_file(), self._selected_file())
+            self._pool_file(), self._selected_file(),
+            self._jiaowu_file(), self._key_field())
         self._loader_thread = QThread()
         self._loader_worker.moveToThread(self._loader_thread)
         self._loader_thread.started.connect(self._loader_worker.run)

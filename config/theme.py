@@ -40,6 +40,8 @@ _DEFAULT_CHROME = {
     "free_chip_bg": "#FCD34D",  # 空闲周标签底色
     "free_chip_fg": "#78350F",  # 空闲周标签文字
     "none_fg": "#6B7280",       # 无空闲周弱化文字
+    "audit_chip_bg": "#E8EAF0",  # 免听标签底色（zxbj=是：周次按空闲处理）
+    "audit_chip_fg": "#3E4C63",  # 免听标签文字
 }
 
 # 课程单元格配色（背景, 文字），按课程顺序循环

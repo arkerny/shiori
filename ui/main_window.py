@@ -60,9 +60,12 @@ class MainWindow(QMainWindow):
         self.sync.task_finished.connect(self._on_sync_finished)
         # 拉取成功后让对应视图重新读文件刷新
         self.sync.courses_updated.connect(lambda _n: self.course_view.reload_pool())
-        self.sync.schedule_updated.connect(lambda _n: self.info_panel_view.reload_jiaowu())
-        # 启动时教务文件缺失的场景：拉取落盘后补做已选课初始化并重载
+        # 启动时教务文件缺失的场景：拉取落盘后先补种已选（须在重载前完成）
         self.sync.schedule_updated.connect(self._seed_after_sync)
+        # 个人课表更新后：infopanel 重读教务文件；课程视图重载已选
+        # （loader 会按教务文件刷新免听标记 zxbj 并重发已选信号）
+        self.sync.schedule_updated.connect(lambda _n: self.info_panel_view.reload_jiaowu())
+        self.sync.schedule_updated.connect(lambda _n: self.course_view.reload_pool())
         # 手动触发：infopanel 两个更新按钮
         self.info_panel_view.sync_courses_requested.connect(self._sync_courses)
         self.info_panel_view.sync_schedule_requested.connect(self._sync_schedule)
@@ -138,8 +141,9 @@ class MainWindow(QMainWindow):
     def _seed_after_sync(self, _count):
         """启动时教务文件缺失的场景：在线拉取落盘后补做已选课初始化。
 
-        已选已有内容时 seed_from_jiaowu 内部直接跳过（绝不覆盖）；
-        补种成功后重载课程视图（loader 同时读课程池与已选）。
+        已选已有内容时 seed_from_jiaowu 内部直接跳过（绝不覆盖）。
+        补种后的重载由 schedule_updated 上统一接的 reload_pool 完成
+        （连接顺序在本槽之后，能看到补种结果）。
         """
         if not self._seed_pending:
             return
@@ -147,7 +151,6 @@ class MainWindow(QMainWindow):
         if seed_from_jiaowu(files.get("selected_courses", "selected_course.json"),
                             files.get("jiaowu_courses", "jiaowu_schedule.json")):
             self._seed_pending = False
-            self.course_view.reload_pool()
 
     def _on_sync_started(self, label):
         """任务开始：进度条忙模式 + 提示等待，并禁用更新按钮。"""

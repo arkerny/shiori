@@ -379,11 +379,17 @@ class ScheduleView(QWidget):
         teacher = _esc(course.get("jsmc", ""))
         jxb = _esc(course.get("jxbmc", ""))
         loc = _format_locs(item.locs)
+        # 免听标记：课程名旁的小标签，提示该课周次按空闲处理
+        audit = ""
+        if str(course.get("zxbj", "")).strip() == "是":
+            audit = (f"<span style='background-color:"
+                     f"{CHROME['audit_chip_bg']}; color:"
+                     f"{CHROME['audit_chip_fg']};'>免听</span> ")
         return (
             f"<div style='color:{fg};'>"
             f"<div style='font-size:10px; margin-bottom:3px;'>"
             f"空闲周：{self._free_chips(item.weeks)}</div>"
-            f"<div style='font-weight:700; font-size:13px;'>{name}</div>"
+            f"<div style='font-weight:700; font-size:13px;'>{audit}{name}</div>"
             f"<div style='font-size:11px;'>{teacher}</div>"
             f"<div style='font-size:11px; opacity:0.85;'>{jxb}</div>"
             f"<div style='font-size:11px; opacity:0.8;'>{loc}</div>"
@@ -406,6 +412,10 @@ class ScheduleView(QWidget):
         sksj 以 ';' 分段，jxdd 同样以 ';' 分段且按顺序一一对应；
         单段内的多个节次区间（如 1-2,8-9）共享该段地点。
         """
+        # 免听标记（个人课表 API 字段 zxbj=“是”）：课仍显示在课表，但
+        # 周次按空闲处理——占用集为空集，故不与任何课判冲突，其格子的
+        # 空闲周标签也显示全部周次
+        audit = str(course.get("zxbj", "")).strip() == "是"
         sksj = course.get("sksj", "") or ""
         segments = [s.strip() for s in sksj.split(";") if s.strip()]
         locations = _segment_locations(course.get("jxdd", ""))
@@ -420,7 +430,7 @@ class ScheduleView(QWidget):
                 continue
             day = self._weekday_index[day_name]
             runs = _expand_periods(m.group(2))
-            weeks = _expand_weeks(m.group(3))
+            weeks = set() if audit else _expand_weeks(m.group(3))
             # 该段地点：按下标取；段数多于地点数时回退到首个/空
             if i < len(locations):
                 loc = locations[i]

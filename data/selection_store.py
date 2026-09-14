@@ -45,6 +45,47 @@ def has_content(path):
         return True
 
 
+def apply_audit_marks(selected, jiaowu_path, key_field="jxbmc"):
+    """按教务个人课表把免听标记（zxbj）盖到已选课记录上，返回新列表。
+
+    已选记录可能取自课程池（无 zxbj 字段），免听的权威来源是教务文件：
+    在教务记录中的，zxbj 以教务为准；不在其中的，清掉记录上可能过期的
+    标记（如早前保存遗留）。不修改入参、不写盘。
+    """
+    try:
+        with open(jiaowu_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        logger.debug("教务课表文件不存在，免听标记不生效：%s", jiaowu_path)
+        return selected
+    except json.JSONDecodeError as e:
+        logger.warning("教务课表文件解析失败，免听标记不生效：%s（%s）", jiaowu_path, e)
+        return selected
+    except OSError as e:
+        logger.warning("教务课表文件读取失败，免听标记不生效：%s（%s）", jiaowu_path, e)
+        return selected
+    if not isinstance(data, list):
+        return selected
+    by_key = {c.get(key_field, ""): c for c in data if isinstance(c, dict)}
+
+    out = []
+    for c in selected:
+        if not isinstance(c, dict):
+            out.append(c)
+            continue
+        src = by_key.get(c.get(key_field, ""))
+        if src is not None:
+            zxbj = str(src.get("zxbj", "")).strip()
+            if zxbj:
+                c = {**c, "zxbj": zxbj}
+            elif "zxbj" in c:
+                c = {k: v for k, v in c.items() if k != "zxbj"}
+        elif "zxbj" in c:  # 不在教务记录中：清掉过期标记
+            c = {k: v for k, v in c.items() if k != "zxbj"}
+        out.append(c)
+    return out
+
+
 def seed_from_jiaowu(selected_path, jiaowu_path):
     """已选课程无内容时，用教务课表文件整文件复制作初始已选。
 
