@@ -49,9 +49,10 @@ def _seed_selected_courses(cfg):
 
 _seed_selected_courses(config)
 
-from PySide6.QtCore import QEvent, QObject, QPoint, QSize
+from PySide6.QtCore import QEvent, QObject, QPoint, QSize, QTimer
 from PySide6.QtGui import QCursor, QFontDatabase
 from PySide6.QtWidgets import QApplication, QWidget
+from ui.ax_disable import disable_native_accessibility
 from ui.main_window import MainWindow
 
 
@@ -140,6 +141,10 @@ def main():
     _apply_default_font(app, config.font_families())
     window = MainWindow(config)
     window.show()
+    # 关闭 macOS 原生辅助功能，规避 QTBUG-107022（AX 缓存随 4.6 万表格
+    # 单元格无界膨胀，久置后内存达十几 GB，搜索框输入时主线程冻结）。
+    # 过早调用不生效，须等窗口上屏后再关，故延迟 1 秒（见 ui.ax_disable）。
+    QTimer.singleShot(1000, disable_native_accessibility)
     ret = app.exec()
     logger.info("Shiori 退出（code=%d）", ret)
     sys.exit(ret)
