@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTabWidget,
 from PySide6.QtCore import Qt, Signal, QTime, QObject, QEvent
 
 from config.app_config import AppConfig
+from hdu.client import DEFAULT_USER_AGENT
 
 logger = logging.getLogger(__name__)
 
@@ -435,6 +436,7 @@ class SettingsDialog(QDialog):
         self.spin_schedule_retries.setValue(int(hdu.get("schedule_retries", 2)))
         net_form.addRow("个人课表查询重试次数", self.spin_schedule_retries)
         self.edit_user_agent = QLineEdit(hdu.get("user_agent", ""))
+        self.edit_user_agent.setPlaceholderText(DEFAULT_USER_AGENT)
         self.edit_user_agent.setToolTip("留空 = 使用内置 UA")
         net_form.addRow("User-Agent", self.edit_user_agent)
         tab_layout.addWidget(net_group)

@@ -1,3 +1,4 @@
+import copy
 import json
 import logging
 from pathlib import Path
@@ -7,367 +8,7 @@ from config.theme import _DEFAULT_CHROME, _DEFAULT_COURSE_COLORS
 logger = logging.getLogger(__name__)
 
 
-# 内置示例配置：原仓库根目录的 config.example.json 固化为代码常量，
-# 打包（Nuitka）后不再依赖外部示例文件；config.json 缺失时以此为蓝本
-# 生成首次运行配置。与 DEFAULT_CONFIG 的分工：DEFAULT_CONFIG 是缺键
-# 回退用的全量默认值，EXAMPLE_CONFIG 是首装的完整初始配置（含
-# course_columns 等用户可编辑内容）。
-_EXAMPLE_CONFIG_JSON = """
-{
-    "course_columns": [
-        {
-            "field": "",
-            "name": "选择",
-            "visible": true,
-            "width": 30
-        },
-        {
-            "field": "xnmc",
-            "name": "学年",
-            "visible": false,
-            "width": 80
-        },
-        {
-            "field": "xqmc",
-            "name": "学期",
-            "visible": false,
-            "width": 30
-        },
-        {
-            "field": "kch",
-            "name": "课程代码",
-            "visible": false,
-            "width": 110
-        },
-        {
-            "field": "kcmc",
-            "name": "课程名称",
-            "visible": true,
-            "width": 150
-        },
-        {
-            "field": "jsmc",
-            "name": "教师姓名",
-            "visible": true,
-            "width": 100
-        },
-        {
-            "field": "jxbmc",
-            "name": "教学班",
-            "visible": true,
-            "width": 200
-        },
-        {
-            "field": "xf",
-            "name": "学分",
-            "visible": true,
-            "width": 40
-        },
-        {
-            "field": "jzgxx",
-            "name": "任课教师",
-            "visible": false,
-            "width": 200
-        },
-        {
-            "field": "jgh",
-            "name": "教师工号",
-            "visible": false,
-            "width": 50
-        },
-        {
-            "field": "sksj",
-            "name": "上课时间",
-            "visible": true,
-            "width": 350
-        },
-        {
-            "field": "kkbm",
-            "name": "开课学院",
-            "visible": true,
-            "width": 110
-        },
-        {
-            "field": "jxdd",
-            "name": "教学地点",
-            "visible": true,
-            "width": 200
-        },
-        {
-            "field": "jxbzc",
-            "name": "教学班组成",
-            "visible": true,
-            "width": 400
-        },
-        {
-            "field": "xsmc",
-            "name": "学时类型",
-            "visible": false,
-            "width": 90
-        },
-        {
-            "field": "rwzxs",
-            "name": "任务总学时",
-            "visible": false,
-            "width": 80
-        },
-        {
-            "field": "qsjsz",
-            "name": "起始结束周",
-            "visible": false,
-            "width": 100
-        },
-        {
-            "field": "kcgsmc",
-            "name": "课程归属",
-            "visible": true,
-            "width": 50
-        },
-        {
-            "field": "kclbmc",
-            "name": "课程类别",
-            "visible": false,
-            "width": 50
-        },
-        {
-            "field": "kcxzmc",
-            "name": "课程性质",
-            "visible": false,
-            "width": 50
-        },
-        {
-            "field": "kklxmc",
-            "name": "开课类型",
-            "visible": false,
-            "width": 50
-        },
-        {
-            "field": "kkztmc",
-            "name": "开课状态",
-            "visible": false,
-            "width": 80
-        },
-        {
-            "field": "jxbrl",
-            "name": "教学班容量",
-            "visible": true,
-            "width": 80
-        },
-        {
-            "field": "fcxxkrs",
-            "name": "已选人数",
-            "visible": true,
-            "width": 80
-        },
-        {
-            "field": "xiaoqmc",
-            "name": "校区",
-            "visible": true,
-            "width": 80
-        }
-    ],
-    "files": {
-        "course_pool": "course.json",
-        "selected_courses": "selected_course.json",
-        "jiaowu_courses": "jiaowu_schedule.json"
-    },
-    "log": {
-        "file": "logs/shiori.log",
-        "level": "DEBUG",
-        "console": true,
-        "console_level": "INFO",
-        "clear_on_start": true
-    },
-    "course": {
-        "key_field": "jxbmc"
-    },
-    "font": {
-        "families": []
-    },
-    "hdu": {
-        "newjw": {
-            "username": "",
-            "password": ""
-        },
-        "cas": {
-            "username": "",
-            "password": ""
-        },
-        "xuenian": "2026",
-        "xueqi": "1",
-        "update_schedule_after_selection": false,
-        "course_timeout": 600,
-        "course_retries": 2,
-        "schedule_timeout": 30,
-        "schedule_retries": 2,
-        "user_agent": "",
-        "cookies": {
-            "jsessionid": "",
-            "route": ""
-        }
-    },
-    "table": {
-        "default_column_width": 120
-    },
-    "info_table": {
-        "row_height": 28,
-        "max_width": 0,
-        "columns": [
-            {
-                "field": "",
-                "name": "类型",
-                "width": 40
-            },
-            {
-                "field": "kcmc",
-                "name": "课程",
-                "width": 200
-            },
-            {
-                "field": "jxbmc",
-                "name": "教学班名称",
-                "width": 200
-            },
-            {
-                "field": "sksj",
-                "name": "时间",
-                "width": 300
-            },
-            {
-                "field": "jxbrl",
-                "name": "教学班容量",
-                "width": 80
-            },
-            {
-                "field": "fcxxkrs",
-                "name": "已选人数",
-                "width": 80
-            },
-            {
-                "field": "",
-                "name": "说明",
-                "width": 0
-            }
-        ]
-    },
-    "schedule": {
-        "total_weeks": 17,
-        "period_times": {
-            "1": [
-                "08:05",
-                "08:50"
-            ],
-            "2": [
-                "08:55",
-                "09:40"
-            ],
-            "3": [
-                "10:00",
-                "10:45"
-            ],
-            "4": [
-                "10:50",
-                "11:35"
-            ],
-            "5": [
-                "11:40",
-                "12:25"
-            ],
-            "6": [
-                "13:30",
-                "14:15"
-            ],
-            "7": [
-                "14:20",
-                "15:05"
-            ],
-            "8": [
-                "15:15",
-                "16:00"
-            ],
-            "9": [
-                "16:05",
-                "16:50"
-            ],
-            "10": [
-                "18:30",
-                "19:15"
-            ],
-            "11": [
-                "19:20",
-                "20:05"
-            ],
-            "12": [
-                "20:10",
-                "20:55"
-            ]
-        },
-        "weekdays": [
-            "星期一",
-            "星期二",
-            "星期三",
-            "星期四",
-            "星期五",
-            "星期六",
-            "星期日"
-        ],
-        "weekday_always": [
-            0,
-            1,
-            2,
-            3,
-            4
-        ],
-        "practice_location": "课外实践不在教室",
-        "credit_limit": 40
-    },
-    "layout": {
-        "margin": 10,
-        "spacing": 10,
-        "scroll_pad": 24
-    },
-    "export": {
-        "scale": 4
-    },
-    "window": {
-        "width": 1500,
-        "height": 800,
-        "handle_width": 8,
-        "schedule_min_width": 360,
-        "course_min_width": 280,
-        "h_min_height": 150,
-        "info_min_height": 120,
-        "splitter_h_sizes": [
-            780,
-            720
-        ],
-        "splitter_v_sizes": [
-            580,
-            220
-        ],
-        "h_stretch": [
-            6,
-            4
-        ],
-        "v_stretch": [
-            7,
-            3
-        ]
-    },
-    "dialog": {
-        "settings_width": 780,
-        "settings_height": 700
-    }
-}
-"""
-
-EXAMPLE_CONFIG = json.loads(_EXAMPLE_CONFIG_JSON)
-# 首装配置也带上 theme 分区（与默认值相同），用户开箱即可看到并编辑
-EXAMPLE_CONFIG["theme"] = {**_DEFAULT_CHROME,
-                           "course_colors": [list(p) for p in _DEFAULT_COURSE_COLORS]}
-
-
-# 全量默认配置：config.json 缺失/缺键时回退、首次生成、兼作 schema 文档。
+# 全量默认配置：config.json 缺失/缺键时回退、首装配置的蓝本，兼作 schema 文档。
 DEFAULT_CONFIG = {
     "course_columns": [],  # 列定义：{"name","field","visible","width"}，由用户在设置中编辑
     "files": {
@@ -419,7 +60,7 @@ DEFAULT_CONFIG = {
         "course_retries": 2,     # 课程池查询超时/网络错误的自动重试次数
         "schedule_timeout": 30,  # 个人课表查询超时（秒）；已选课列表小，秒级返回
         "schedule_retries": 2,   # 个人课表查询超时/网络错误的自动重试次数
-        "user_agent": "",        # 空 = 使用内置 UA
+        "user_agent": "",        # 空 = 使用 hdu.client.DEFAULT_USER_AGENT（UA 唯一来源）
         "cookies": {             # 登录成功后自动回写，下次免登录
             "enabled": True,
             "jsessionid": "",
@@ -495,6 +136,44 @@ DEFAULT_CONFIG = {
 }
 
 
+# 首装完整课程列（原仓库根目录 config.example.json 固化为代码常量，
+# 打包（Nuitka）后不再依赖外部示例文件）。仅 course_columns 需要预设
+# 完整列；DEFAULT_CONFIG 里留空，因为它是缺键回退用的，不该替用户
+# 决定列布局。
+_FIRST_RUN_COURSE_COLUMNS = [
+    {"field": "", "name": "选择", "visible": True, "width": 30},
+    {"field": "xnmc", "name": "学年", "visible": False, "width": 80},
+    {"field": "xqmc", "name": "学期", "visible": False, "width": 30},
+    {"field": "kch", "name": "课程代码", "visible": False, "width": 110},
+    {"field": "kcmc", "name": "课程名称", "visible": True, "width": 150},
+    {"field": "jsmc", "name": "教师姓名", "visible": True, "width": 100},
+    {"field": "jxbmc", "name": "教学班", "visible": True, "width": 200},
+    {"field": "xf", "name": "学分", "visible": True, "width": 40},
+    {"field": "jzgxx", "name": "任课教师", "visible": False, "width": 200},
+    {"field": "jgh", "name": "教师工号", "visible": False, "width": 50},
+    {"field": "sksj", "name": "上课时间", "visible": True, "width": 350},
+    {"field": "kkbm", "name": "开课学院", "visible": True, "width": 110},
+    {"field": "jxdd", "name": "教学地点", "visible": True, "width": 200},
+    {"field": "jxbzc", "name": "教学班组成", "visible": True, "width": 400},
+    {"field": "xsmc", "name": "学时类型", "visible": False, "width": 90},
+    {"field": "rwzxs", "name": "任务总学时", "visible": False, "width": 80},
+    {"field": "qsjsz", "name": "起始结束周", "visible": False, "width": 100},
+    {"field": "kcgsmc", "name": "课程归属", "visible": True, "width": 50},
+    {"field": "kclbmc", "name": "课程类别", "visible": False, "width": 50},
+    {"field": "kcxzmc", "name": "课程性质", "visible": False, "width": 50},
+    {"field": "kklxmc", "name": "开课类型", "visible": False, "width": 50},
+    {"field": "kkztmc", "name": "开课状态", "visible": False, "width": 80},
+    {"field": "jxbrl", "name": "教学班容量", "visible": True, "width": 80},
+    {"field": "fcxxkrs", "name": "已选人数", "visible": True, "width": 80},
+    {"field": "xiaoqmc", "name": "校区", "visible": True, "width": 80},
+]
+
+# 首装初始配置：DEFAULT_CONFIG 深拷贝后补上初始列，用户开箱即可看到
+# 并编辑（含 theme 分区）。除此之外首装与回退默认值完全一致。
+EXAMPLE_CONFIG = copy.deepcopy(DEFAULT_CONFIG)
+EXAMPLE_CONFIG["course_columns"] = _FIRST_RUN_COURSE_COLUMNS
+
+
 def _deep_merge(base, override):
     """递归合并：dict 深合并，list/标量以 override 为准。"""
     out = dict(base)
@@ -523,9 +202,10 @@ def _missing_keys(base, data, prefix=""):
 class AppConfig:
     """config.json 的唯一读写器。全量 round-trip，分区访问。
 
-    config.json 是唯一数据来源；缺失时以内置示例配置（EXAMPLE_CONFIG，
-    原 config.example.json）生成，键不全时与 DEFAULT_CONFIG 深合并回退。
-    course_columns 由 SettingsDialog 直接读写（property），其余分区只读使用。
+    config.json 是唯一数据来源；缺失时以内置首装配置（EXAMPLE_CONFIG，
+    由 DEFAULT_CONFIG 加初始课程列派生）生成，键不全时与 DEFAULT_CONFIG
+    深合并回退。course_columns 由 SettingsDialog 直接读写（property），
+    其余分区只读使用。
     """
 
     def __init__(self, config_file=None):
@@ -546,7 +226,7 @@ class AppConfig:
                 data = {}
                 valid = False
         elif self._seed_default():
-            # 已按内置示例配置生成 config.json，直接使用（省一次读盘）
+            # 已按内置首装配置生成 config.json，直接使用（省一次读盘）
             data = dict(EXAMPLE_CONFIG)
         else:
             logger.info("配置文件 %s 不存在且无法生成，使用默认配置", self.config_file)
@@ -584,7 +264,7 @@ class AppConfig:
                         ", ".join(missing))
 
     def _seed_default(self):
-        """config.json 缺失时，把内置示例配置写入磁盘作首次运行配置。
+        """config.json 缺失时，把内置首装配置写入磁盘作首次运行配置。
 
         写入成功返回 True；失败（如目录不可写）返回 False，走
         DEFAULT_CONFIG 默认配置。
@@ -597,7 +277,7 @@ class AppConfig:
             logger.warning("写入初始配置 %s 失败，使用内置默认配置：%s",
                            self.config_file, e)
             return False
-        logger.info("配置文件 %s 不存在，已写入内置示例配置", self.config_file)
+        logger.info("配置文件 %s 不存在，已写入内置首装配置", self.config_file)
         return True
 
     def save_config(self):
