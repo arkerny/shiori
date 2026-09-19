@@ -130,13 +130,17 @@ def _format_locs(locs):
 class _Item:
     """格内一门课程：可能由多个同节次段合并而来（周次并集、多地点）。"""
 
-    __slots__ = ("course", "weeks", "locs", "color")
+    __slots__ = ("course", "weeks", "locs", "color", "spans")
 
-    def __init__(self, course, weeks, loc, color):
+    def __init__(self, course, weeks, loc, color, start, end):
         self.course = course
         self.weeks = set(weeks)
         self.locs = [(loc, set(weeks))]
         self.color = color
+        # (start, end, weeks)：保留节次子区间与周次的对应关系。冲突判定必须
+        # 按此粒度比较（节次相交 且 周次相交），否则「3-5{7-17周} +
+        # 3-8{1-6周}」会被并集成 3-8{1-17周} 而与 6-8{7-17周} 误报冲突。
+        self.spans = [(start, end, set(weeks))]
 
 
 class _Cell:
@@ -154,12 +158,21 @@ class _Cell:
         return self.start <= other.end and other.start <= self.end
 
 
+def _spans_conflict(spans_a, spans_b):
+    """两组 (节次区间, 周次) 中，存在「节次相交且周次相交」才算冲突。"""
+    for s1, e1, w1 in spans_a:
+        for s2, e2, w2 in spans_b:
+            if s1 <= e2 and s2 <= e1 and (w1 & w2):
+                return True
+    return False
+
+
 def _has_conflict(items):
-    """不同课程且周次相交才算冲突。同门课不同地点/周次不算。"""
+    """不同课程且（节次、周次）均相交才算冲突。同门课不同地点/周次不算。"""
     for i in range(len(items)):
         for j in range(i + 1, len(items)):
             if items[i].course is not items[j].course:
-                if items[i].weeks & items[j].weeks:
+                if _spans_conflict(items[i].spans, items[j].spans):
                     return True
     return False
 
@@ -167,8 +180,9 @@ def _has_conflict(items):
 def _build_day_cells(raw):
     """同一天 -> list[_Cell]。
 
-    先按课程合并同节次重叠的段（周次并集、地点分段标注），再跨课程按节次
-    合并成格；仅当不同课程且周次相交才判为冲突。
+    先按课程合并同节次重叠的段（周次并集、地点分段标注，同时记录 spans
+    保留节次与周次的对应），再跨课程按节次合并成格；仅当不同课程且
+    「节次相交 + 周次相交」才判为冲突。
     """
     # 1. 按课程分组，合并该课程内节次重叠的段
     by_course = {}
@@ -185,8 +199,9 @@ def _build_day_cells(raw):
                 it = cur.items[0]
                 it.weeks |= weeks
                 it.locs.append((loc, weeks))
+                it.spans.append((s, e, set(weeks)))  # 保留本段节次与周次
             else:
-                cur = _Cell(s, e, _Item(course, weeks, loc, color))
+                cur = _Cell(s, e, _Item(course, weeks, loc, color, s, e))
                 cells.append(cur)
     # 2. 跨课程按节次合并成同一格（共享节次槽）
     cells.sort(key=lambda c: c.start)
@@ -463,7 +478,8 @@ class ScheduleView(QWidget):
         """遍历当前课表的冲突格 -> 冲突描述列表。
 
         每项：{"courses": [课程dict...], "time": "星期X 第a-b节", "overlap": "1-6周"}
-        overlap 为冲突涉及的周次并集（已压缩），无交集时为 "无"。
+        time 为实际冲突的节次区间（节次相交的段），overlap 为这些段上
+        周次交集之并（已压缩）。
         """
         report = []
         for day, blocks in self._layout.items():
@@ -472,23 +488,38 @@ class ScheduleView(QWidget):
                     continue
                 # 去重参与课程（同一课程不同地点/周次只取一次）
                 courses = []
-                weeks_by_course = []
+                spans_by_course = []
                 for it in blk.items:
                     if not any(it.course is c for c in courses):
                         courses.append(it.course)
-                        weeks_by_course.append(set(it.weeks))
+                        spans_by_course.append(
+                            [(s, e, set(w)) for s, e, w in it.spans])
                     else:
                         for i, c in enumerate(courses):
                             if it.course is c:
-                                weeks_by_course[i] |= it.weeks
-                # 冲突周次 = 任意两门课的周次交集之并
+                                spans_by_course[i].extend(
+                                    (s, e, set(w)) for s, e, w in it.spans)
+                # 冲突周次 = 任意两门课「节次相交」时的周次交集之并；
+                # 冲突节次 = 这些相交段的区间并集（可能只占整格的一部分）
                 overlap = set()
-                for i in range(len(weeks_by_course)):
-                    for j in range(i + 1, len(weeks_by_course)):
-                        overlap |= weeks_by_course[i] & weeks_by_course[j]
+                lo = hi = None
+                for i in range(len(courses)):
+                    for j in range(i + 1, len(courses)):
+                        for s1, e1, w1 in spans_by_course[i]:
+                            for s2, e2, w2 in spans_by_course[j]:
+                                if s1 > e2 or s2 > e1:
+                                    continue
+                                ov = w1 & w2
+                                if not ov:
+                                    continue
+                                overlap |= ov
+                                s, e = max(s1, s2), min(e1, e2)
+                                lo = s if lo is None else min(lo, s)
+                                hi = e if hi is None else max(hi, e)
+                if not overlap:
+                    continue
                 day_name = self._weekdays[day] if 0 <= day < len(self._weekdays) else ""
-                periods = (str(blk.start) if blk.start == blk.end
-                           else f"{blk.start}-{blk.end}")
+                periods = str(lo) if lo == hi else f"{lo}-{hi}"
                 report.append({
                     "courses": courses,
                     "time": f"{day_name} 第{periods}节",
